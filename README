@@ -29,7 +29,7 @@ Advisory lock on id:
       include PgAdvisoryLocker
 
       def lock_for_whatever
-	return advisory_lock(self.id)
+	return advisory_lock
       end
 
       def unlock_for_whatever
