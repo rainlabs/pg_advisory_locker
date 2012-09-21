@@ -1,10 +1,10 @@
 PATH
   remote: .
   specs:
-    pg_advisory_locker (0.9.1)
-      pg (= 0.14.1)
+    pg_advisory_locker (1.0.1)
+      pg
       rails (>= 3.0.0)
-      rspec-rails (= 2.11.0)
+      rspec-rails
 
 GEM
   remote: http://rubygems.org/
