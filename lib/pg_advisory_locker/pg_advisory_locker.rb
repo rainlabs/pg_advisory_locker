@@ -55,11 +55,13 @@ module PgAdvisoryLocker
       locked = uncached do
         find_by_sql(["select pg_try_advisory_lock(?, ?)", table_oid, id])[0].pg_try_advisory_lock == "t"
       end
-      if block.present?
-        begin
-          block.call
-        ensure
-          unlock_record(id)
+      if locked
+        if block.present?
+          begin
+            block.call
+          ensure
+            unlock_record(id)
+          end
         end
       end
       return locked
