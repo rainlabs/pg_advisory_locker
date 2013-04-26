@@ -3,19 +3,40 @@ module PgAdvisoryLocker
     base.extend(ClassMethods)
   end
 
+  # advisory lock this row associated identified by model#id
+  #
+  # blocks until advisory lock is release
+  # acquires lock on return
+  #
+  # if block is passed in, lock/unlock around the block
   def advisory_lock(&block)
     return self.class.lock_record(id, &block)
   end
 
+  # advisory try lock this row associated identified by model#id
+  #
+  # if lock is acquired, acquires lock and returns true
+  # if lock is currently acquired, returns false
+  # never blocks
+  #
+  # if block is passed in, lock/unlock around the block
+  # executing block only if lock is acquired
   def advisory_try_lock(&block)
     return self.class.try_lock_record(id, &block)
   end
 
+  # advisory unlock this row associated identified by model#id
+  #
+  # on return releases lock
   def advisory_unlock
     self.class.unlock_record(id)
   end
 
   module ClassMethods
+    # table_oid is good unique identifier value for the table
+    # We could use a has of the name if the thought there would
+    # be no collisions
+    # The OID is always unique, so we use it
     def table_oid
       if @table_oid.nil?
         sql_table_components = table_name.split('.')
@@ -37,39 +58,85 @@ module PgAdvisoryLocker
       return @table_oid
     end
 
-    def lock_record(id, &block)
+    # advisory lock for this model, with key2 as argument
+    # blocks until advisory lock is release
+    # acquires lock on return
+    #
+    # if block is passed in, lock/unlock around the block
+    def lock_record(key2, &block)
+      return pg_advisory_lock(table_oid, key2, &block)
+    end
+
+    # advisory try lock for this model, with key2 as argument
+    #
+    # if lock is acquired, acquires lock and returns true
+    # if lock is currently acquired, returns false
+    # never blocks
+    #
+    # if block is passed in, lock/unlock around the block
+    # executing block only if lock is acquired
+    def try_lock_record(key2, &block)
+      return pg_try_advisory_lock(table_oid, key2, &block)
+    end
+
+    # advisory unlock for this model, with key2 as argument
+    # on return releases lock
+    def unlock_record(key2)
+      return pg_advisory_unlock(table_oid, key2)
+    end
+
+    # pg_advisory_lock - direct access to postgres pg_advisory_lock function
+    # key1: int
+    # key2: int
+    # if block is passed in, lock/unlock around the block
+    def pg_advisory_lock(key1, key2, &block)
       locked = uncached do
-        find_by_sql(["select pg_advisory_lock(?, ?)", table_oid, id])[0].pg_advisory_lock == "t"
+        find_by_sql(["select pg_advisory_lock(?, ?)", key1, key2]).first.pg_advisory_lock == "t"
       end
       if block.present?
         begin
           return block.call
         ensure
-          unlock_record(id)
+          pg_advisory_unlock(key1, key2)
         end
       end
       return locked
     end
 
-    def try_lock_record(id, &block)
+    # pg_try_advisory_lock - direct access to postgres pg_try_advisory_lock function
+    # key1: int
+    # key2: int
+    #
+    # if lock is acquired, acquires lock and returns true
+    # if lock is currently acquired, returns false
+    # never blocks
+    #
+    # if block is passed in, lock/unlock around the block
+    # executing block only if lock is acquired
+    def pg_try_advisory_lock(key1, key2, &block)
       locked = uncached do
-        find_by_sql(["select pg_try_advisory_lock(?, ?)", table_oid, id])[0].pg_try_advisory_lock == "t"
+        find_by_sql(["select pg_try_advisory_lock(?, ?)", key1, key2]).first.pg_try_advisory_lock == "t"
       end
       if locked
         if block.present?
           begin
             block.call
           ensure
-            unlock_record(id)
+            pg_advisory_unlock(key1, key2)
           end
         end
       end
       return locked
     end
 
-    def unlock_record(id)
+    # pg_advisory_unlock - direct access to postgres pg_advisory_unlock function
+    # key1: int
+    # key2: int
+    #
+    # on return releases lock
+    def pg_advisory_unlock(key1, key2)
       unlocked = uncached do
-        find_by_sql(["select pg_advisory_unlock(?, ?)", table_oid, id])[0].pg_advisory_unlock == "t"
+        find_by_sql(["select pg_advisory_unlock(?, ?)", key1, key2]).first.pg_advisory_unlock == "t"
       end
       return unlocked
     end

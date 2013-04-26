@@ -45,3 +45,13 @@ Advisory lock on id:
         end
       end
     end
+
+Generic locking:
+
+    class Foo < ActiveRecord::Base
+      include PgAdvisoryLocker
+    end
+
+    Foo.pg_advisory_lock(0, 0) do
+      # do something
+    end
